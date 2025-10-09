@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from './components/Card';
 import CustomizationPanel from './components/CustomizationPanel';
+import pako from 'pako';
 
 const DEFAULT_MESSAGE = "Thank you for your endless love, support, and guidance. You are the best mom in the world, and I'm so grateful for everything you do. Wishing you a day as beautiful as you are.";
 const DEFAULT_SIGNATURE = "With all my love,";
@@ -33,34 +34,51 @@ const App: React.FC = () => {
   const [isViewMode, setIsViewMode] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true); // Start true to check URL
 
+  const applyCardData = (data: any) => {
+    setMessage(data.message || DEFAULT_MESSAGE);
+    setSignature(data.signature || DEFAULT_SIGNATURE);
+    setName(data.name || DEFAULT_NAME);
+    setRecipient(data.recipient || DEFAULT_RECIPIENT);
+    setFont(data.font || DEFAULT_FONT);
+    setDesign(data.design || DEFAULT_DESIGN);
+    setCardType(data.cardType || DEFAULT_CARD_TYPE);
+    setCustomTitle(data.customTitle || '');
+    setBorderColor(data.borderColor || DEFAULT_BORDER_COLOR);
+    setHeadingColor(data.headingColor || DEFAULT_HEADING_COLOR);
+    setMessageColor(data.messageColor || DEFAULT_MESSAGE_COLOR);
+    setSignatureColor(data.signatureColor || DEFAULT_SIGNATURE_COLOR);
+    setNameColor(data.nameColor || DEFAULT_NAME_COLOR);
+    setBackgroundImages(data.backgroundImages || []);
+    setIsViewMode(true);
+  }
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const cardDataParam = urlParams.get('card');
 
     if (cardDataParam) {
       try {
-        const decodedData = atob(decodeURIComponent(cardDataParam));
-        const data = JSON.parse(decodedData);
-        // Set state from URL data
-        setMessage(data.message || DEFAULT_MESSAGE);
-        setSignature(data.signature || DEFAULT_SIGNATURE);
-        setName(data.name || DEFAULT_NAME);
-        setRecipient(data.recipient || DEFAULT_RECIPIENT);
-        setFont(data.font || DEFAULT_FONT);
-        setDesign(data.design || DEFAULT_DESIGN);
-        setCardType(data.cardType || DEFAULT_CARD_TYPE);
-        setCustomTitle(data.customTitle || '');
-        setBorderColor(data.borderColor || DEFAULT_BORDER_COLOR);
-        setHeadingColor(data.headingColor || DEFAULT_HEADING_COLOR);
-        setMessageColor(data.messageColor || DEFAULT_MESSAGE_COLOR);
-        setSignatureColor(data.signatureColor || DEFAULT_SIGNATURE_COLOR);
-        setNameColor(data.nameColor || DEFAULT_NAME_COLOR);
-        setBackgroundImages(data.backgroundImages || []);
-        setIsViewMode(true);
+        // New: Try to decode and decompress first
+        const decodedParam = decodeURIComponent(cardDataParam);
+        const binaryString = atob(decodedParam);
+        const compressedData = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          compressedData[i] = binaryString.charCodeAt(i);
+        }
+        const decompressedData = pako.inflate(compressedData, { to: 'string' });
+        const data = JSON.parse(decompressedData);
+        applyCardData(data);
       } catch (error) {
-        console.error("Failed to parse card data from URL", error);
-        // If parsing fails, just show the editor
-        setIsViewMode(false);
+        console.error("Failed to parse compressed card data, trying legacy method...", error);
+        // Fallback for old, uncompressed links
+        try {
+            const decodedData = atob(decodeURIComponent(cardDataParam));
+            const data = JSON.parse(decodedData);
+            applyCardData(data);
+        } catch (legacyError) {
+             console.error("Failed to parse card data from URL with any method", legacyError);
+             setIsViewMode(false);
+        }
       }
     } else {
         setIsViewMode(false);

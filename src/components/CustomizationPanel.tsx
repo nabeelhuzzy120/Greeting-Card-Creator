@@ -1,4 +1,5 @@
 import React, { useState, ChangeEvent } from 'react';
+import pako from 'pako';
 
 interface CustomizationPanelProps {
   message: string;
@@ -125,7 +126,18 @@ const CustomizationPanel: React.FC<CustomizationPanelProps> = ({
 
     try {
       const serializedData = JSON.stringify(cardData);
-      const encodedData = btoa(serializedData);
+      
+      // Compress the JSON string
+      const compressedData = pako.deflate(serializedData);
+      
+      // Convert Uint8Array to a binary string for btoa
+      let binaryString = '';
+      compressedData.forEach((byte) => {
+        binaryString += String.fromCharCode(byte);
+      });
+      
+      // Base64 encode the compressed binary string
+      const encodedData = btoa(binaryString);
       
       const baseUrl = new URL(window.location.href);
       baseUrl.search = ''; // Clear existing params
