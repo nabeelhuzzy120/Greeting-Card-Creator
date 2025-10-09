@@ -45,6 +45,54 @@ const MAX_RECIPIENT_LENGTH = 30;
 const MAX_CUSTOM_TITLE_LENGTH = 40;
 const MAX_IMAGES = 5;
 
+const resizeAndCompressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            if (!event.target?.result) {
+                return reject(new Error("Couldn't read file"));
+            }
+            img.src = event.target.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 1024;
+                const MAX_HEIGHT = 1024;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    return reject(new Error('Could not get canvas context'));
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Use JPEG for better compression for photos, with a quality of 0.7
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(dataUrl);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
+
+
 const AccordionItem: React.FC<AccordionItemProps> = ({id, title, children, activeAccordion, toggleAccordion}) => (
     <div className="border border-rose-200/80 rounded-lg overflow-hidden">
         <h2>
@@ -69,15 +117,10 @@ const CustomizationPanel: React.FC<CustomizationPanelProps> = ({
   const [activeAccordion, setActiveAccordion] = useState<string>('content');
 
   const handleGenerateLink = () => {
-    // Links with embedded images are too large and unreliable.
-    // Only generate links for cards without background images.
-    if (backgroundImages.length > 0) return;
-
     const cardData = {
       message, signature, name, recipient, font, design,
       cardType, customTitle, borderColor, headingColor, messageColor,
-      signatureColor, nameColor
-      // NOTE: backgroundImages is intentionally excluded.
+      signatureColor, nameColor, backgroundImages
     };
 
     try {
@@ -110,19 +153,14 @@ const CustomizationPanel: React.FC<CustomizationPanelProps> = ({
         const imagePromises: Promise<string>[] = [];
         
         files.slice(0, MAX_IMAGES - backgroundImages.length).forEach(file => {
-            imagePromises.push(new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            }));
+            imagePromises.push(resizeAndCompressImage(file));
         });
 
         Promise.all(imagePromises).then(newImages => {
             setBackgroundImages([...backgroundImages, ...newImages]);
         }).catch(error => {
-            console.error("Error reading files:", error);
-            alert("Sorry, there was an error uploading your images.");
+            console.error("Error processing images:", error);
+            alert("Sorry, there was an error processing your images.");
         });
     }
   };
@@ -134,8 +172,6 @@ const CustomizationPanel: React.FC<CustomizationPanelProps> = ({
   const toggleAccordion = (id: string) => {
     setActiveAccordion(activeAccordion === id ? '' : id);
   }
-
-  const canGenerateLink = backgroundImages.length === 0;
 
   return (
     <div className="bg-white/60 backdrop-blur-lg rounded-2xl shadow-xl p-6 sm:p-8 w-full text-left transition-all duration-300">
@@ -253,12 +289,9 @@ const CustomizationPanel: React.FC<CustomizationPanelProps> = ({
         <AccordionItem id="share" title="Share Your Card" activeAccordion={activeAccordion} toggleAccordion={toggleAccordion}>
             <div className="flex flex-col items-center text-center">
                  <p className="text-sm text-gray-600 mb-4">
-                    {canGenerateLink 
-                        ? "Generate a unique link to your animated card to share anywhere!"
-                        : "Please remove background images to generate a shareable link. Links with images are too large and cannot be shared reliably."
-                    }
+                    Generate a unique link to your animated card to share anywhere! Your design, including any custom images, will be included.
                  </p>
-                <button onClick={handleGenerateLink} disabled={!canGenerateLink} className="w-full sm:w-auto px-8 py-3 font-bold text-white rounded-lg shadow-md transition-all duration-300 transform hover:scale-105 bg-rose-500 hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none" aria-live="polite">
+                <button onClick={handleGenerateLink} className="w-full sm:w-auto px-8 py-3 font-bold text-white rounded-lg shadow-md transition-all duration-300 transform hover:scale-105 bg-rose-500 hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none" aria-live="polite">
                     {copyButtonText}
                 </button>
             </div>

@@ -55,8 +55,7 @@ const App: React.FC = () => {
         setMessageColor(data.messageColor || DEFAULT_MESSAGE_COLOR);
         setSignatureColor(data.signatureColor || DEFAULT_SIGNATURE_COLOR);
         setNameColor(data.nameColor || DEFAULT_NAME_COLOR);
-        // Background images are not shared via link to ensure reliability
-        setBackgroundImages([]);
+        setBackgroundImages(data.backgroundImages || []);
         setIsViewMode(true);
       } catch (error) {
         console.error("Failed to parse card data from URL", error);
